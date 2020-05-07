@@ -5,7 +5,8 @@ use rand_distr::{Distribution, Normal, NormalError, Uniform};
 
 #[derive(Debug)]
 struct MThd {
-    identifier: String,
+    //identifier: String,
+    identifier: [u8; 4],
     chunklen: u32, // big-endian
     format: u16, // big-endian
     ntracks: u16, // big-endian
@@ -51,8 +52,8 @@ impl MThd {
         A timing resolution of 1 ms can be achieved by specifying 25 fps and 40 sub-frames, which would be encoded in hex as  E7 28.
         */
 
-        let timecode = Uniform::from(0..2).sample(&mut rng) as u8; // get a 0 or 1 for bit 15
-        let mut tckdv: u16 = (timecode as u16) << 15;
+        let timecode = Uniform::from(0..2).sample(&mut rng) as u16; // get a 0 or 1 for bit 15
+        let mut tckdv: u16 = timecode << 15;
 
         let tckdv_extra_bits: u16 = match timecode {
             0 => 96, // common value
@@ -82,7 +83,7 @@ impl MThd {
         tckdv = tckdv | tckdv_extra_bits;
 
         MThd {
-            identifier: String::from("MThd"),
+            identifier: ['M' as u8, 'T' as u8, 'h' as u8,'d' as u8],
             chunklen: 6, // MIDI currently only supports chunklen 6
             format: fmt,
             ntracks: ntrk,
@@ -93,7 +94,7 @@ impl MThd {
 
 #[derive(Debug)]
 struct DeltaTime {
-    
+
 }
 
 #[derive(Debug)]
@@ -160,14 +161,24 @@ impl MTrk {
 fn main() {
     let mut rng = rand::thread_rng();
 
-    println!("{:?}", MThd::new());
-    println!("{:?}", MThd::new());
-    println!("{:?}", MThd::new());
-    println!("{:?}", MThd::new());
-    println!("{:?}", MThd::new());
-    println!("{:?}", MThd::new());
-    println!("{:?}", MThd::new());
-    println!("{:?}", MThd::new());
+    let mut headers: Vec<MThd> = Vec::new();
+    for _ in 0..10 {
+        headers.push(MThd::new());
+    }
+
+    println!("Size of MThd struct: {}", std::mem::size_of::<MThd>());
+    for header in headers.iter() {
+        // header.identifier.iter().cloned().collect::<String>() // works for a char array, but Rust char is 4 bytes
+        println!("{:?}\n\tSize: {}", header, std::mem::size_of_val(&header));
+    }
+
+    println!("Size of MThd struct: {:?}\nSize of struct variables:\n\tSize of Identifier: {:?}\n\tSize of chunklen: {}\n\tSize of format: {}\n\tSize of ntracks: {}\n\tSize of tickdiv: {}\n", 
+        std::mem::size_of::<MThd>(),
+        std::mem::size_of_val(&headers.get(0).unwrap().identifier), 
+        std::mem::size_of_val(&headers.get(0).unwrap().chunklen), 
+        std::mem::size_of_val(&headers.get(0).unwrap().format), 
+        std::mem::size_of_val(&headers.get(0).unwrap().ntracks), 
+        std::mem::size_of_val(&headers.get(0).unwrap().tickdiv));
 
     let trk = MTrk::new();
     println!("{:?}", MTrk::new());
