@@ -1,7 +1,85 @@
 extern crate rand;
 extern crate rand_distr;
+
 use rand::Rng;
 use rand_distr::{Distribution, Normal, NormalError, Uniform};
+
+enum MIDIEvents {
+    NoteOff,
+    NoteOn,
+    PolyphonicPressure,
+    Controller,
+    ProgramChange,
+    ChannelPressure,
+    PitchBend,
+}
+
+#[derive(Debug, Copy, Clone)]
+enum MetaEvents {
+    SequenceNumber,
+    Text,
+    Copyright,
+    SequenceORTrackName,
+    InstrumentName,
+    Lyric,
+    ProgramName,
+    DeviceName,
+    MIDIChannelPrefix,
+    MIDIPort,
+    EndOfTrack,
+    SequencerSpecificEvent,
+    Marker,
+    CuePoint,
+    Tempo,
+    SMPTEOffset,
+    TimeSignature,
+    KeySignature,
+}
+
+impl MetaEvents {
+
+    /// Returns a random MetaEvents using a Uniform distribution
+    /// 
+    /// # Arguments
+    /// 
+    /// * `lower` - A u32 representing the lower bound of the random number generation, minimum value of 0
+    /// * `upper` - A u32 representing the upper bound of the random number generation, maximum value of 18
+    /// 
+    /// To pick between timing events, Lower: 12 and Upper: 18
+    fn pick_random(lower: u32, upper: u32) -> MetaEvents {
+        let mut rng = rand::thread_rng();
+        let test = Uniform::from(lower..upper).sample(&mut rng) as u32;
+        match test {
+            0 => MetaEvents::SequenceNumber,
+            1 => MetaEvents::Text,
+            2 => MetaEvents::Copyright,
+            3 => MetaEvents::SequenceORTrackName,
+            4 => MetaEvents::InstrumentName,
+            5 => MetaEvents::Lyric,
+            6 => MetaEvents::ProgramName,
+            7 => MetaEvents::DeviceName,
+            8 => MetaEvents::MIDIChannelPrefix,
+            9 => MetaEvents::MIDIPort,
+            10 => MetaEvents::EndOfTrack,
+            11 => MetaEvents::SequencerSpecificEvent,
+            12 => MetaEvents::Marker,
+            13 => MetaEvents::CuePoint,
+            14 => MetaEvents::Tempo,
+            15 => MetaEvents::SMPTEOffset,
+            16 => MetaEvents::TimeSignature,
+            17 => MetaEvents::KeySignature,
+            _ => panic!("Error when picking random event. Number out of bounds.")
+        }
+    }
+}
+
+
+/* const METAEVENTSLIST: [MetaEvents; 18] = 
+                     [ MetaEvents::SequenceNumber, MetaEvents::Text, MetaEvents::Copyright, MetaEvents::SequenceORTrackName,
+                       MetaEvents::InstrumentName, MetaEvents::Lyric, MetaEvents::ProgramName, MetaEvents::DeviceName,
+                       MetaEvents::MIDIChannelPrefix, MetaEvents::MIDIPort, MetaEvents::EndOfTrack, MetaEvents::SequencerSpecificEvent,
+                       MetaEvents::Marker, MetaEvents::CuePoint, MetaEvents::Tempo, MetaEvents::SMPTEOffset,
+                       MetaEvents::TimeSignature, MetaEvents::KeySignature ]; */
 
 #[derive(Debug)]
 struct MThd {
@@ -65,9 +143,9 @@ impl MThd {
                     3 => 0xE2 as u16,
                     _ => panic!("Error found when generating MThd chunk. Invalid fps in tickdiv.")
                 };
-                temp = temp << 8; // set up bits 8 - 14 and shift
-                temp = temp | (1 << 15); // because we had to move bit 0 over by 8, bit 7 may have overwritten bit 15 with a 0, let's do this for safety
-                temp = temp | match Uniform::from(0..5).sample(&mut rng) as u8 { // set up our sub-frame resolution using the typical values
+                temp = temp << 8; /* set up bits 8 - 15 and shift */
+                // temp = temp | (1 << 15); /* because we had to move bit 0 over by 8, bit 7 may have overwritten bit 15 with a 0, let's do this for safety */
+                temp = temp | match Uniform::from(0..5).sample(&mut rng) as u8 { /* set up our sub-frame resolution using the typical values */
                     0 => 4 as u16,
                     1 => 8 as u16,
                     2 => 10 as u16,
@@ -139,7 +217,7 @@ impl Event for MetaEvent {
 // The different event types, MidiEvent, SysExEvent, and MetaEvent can all be used in a single track chunk
 #[derive(Debug)]
 struct MTrk {
-    identifier: String,
+    identifier: [u8; 4],
     chunklen: u32, // big-endian
     data: Vec<(DeltaTime, Box<dyn Event>)>,
 }
@@ -147,40 +225,147 @@ struct MTrk {
 impl MTrk {
     fn new() -> MTrk {
         let mut rng = rand::thread_rng();
+        let uniform = Uniform::from(0..3);
+
+        let fmt = uniform.sample(&mut rng) as u16;
+
+
+        let mut rng = rand::thread_rng();
         let chunky = Uniform::from(1..100);
-        let normal = Normal::new(50.0, 25.0).unwrap(); // need proper error handling here
+        // let normal = Normal::new(50.0, 25.0).unwrap(); // need proper error handling here
+        // chunklen: chunky.sample(&mut rng) as u32,
+        // chunklen: normal.sample(&mut rng) as u32,
         MTrk {
-            identifier: String::from("MTrk"),
-            // chunklen: chunky.sample(&mut rng) as u32,
-            chunklen: normal.sample(&mut rng) as u32,
+            identifier: ['M' as u8, 'T' as u8, 'r' as u8, 'k' as u8],
+            chunklen: 3,
             data: Vec::new(),
         }
+    }
+
+    fn new_track_format_0() -> MTrk {
+        todo!();
+    }
+
+    // global tempo track contains all timing related events and no note data
+    // timing events are the following Meta events: Marker, Cue Point, Tempo, SMPTE Offset, Time Signature, and Key Signature
+    fn new_global_tempo() -> MTrk {
+        let mut rng = rand::thread_rng();
+        
+        // Generate <DeltaTime>
+
+        MTrk {
+            identifier: ['M' as u8, 'T' as u8, 'r' as u8, 'k' as u8],
+            chunklen: 3,
+            data: Vec::new(),
+        }
+
+    }
+
+    fn new_track_format_1() -> MTrk {
+        todo!();
+    }
+
+    fn new_track_format_2() -> MTrk {
+        todo!();
     }
 }
 
 fn main() {
-    let mut rng = rand::thread_rng();
+    
 
-    let mut headers: Vec<MThd> = Vec::new();
-    for _ in 0..10 {
-        headers.push(MThd::new());
+    let third_event = MetaEvents::pick_random(0, 18);
+    println!("Third Event: {:?}", third_event);
+
+
+    MetaEvents::pick_random(0, 18);
+
+    let header = MThd::new();
+    let mut tracks = Vec::new();
+
+    if header.format == 0 { // need a single MTrk chunk containing any valid event
+        tracks.push(MTrk::new_track_format_0());
+    }
+    else if header.format == 1 { // first MTrk chunk is a global tempo chunk, second and subsequent are the actual note data
+        tracks.push(MTrk::new_global_tempo());
+        for _ in 1..header.ntracks {
+            tracks.push(MTrk::new_track_format_1());
+        }        
+    } 
+    else { // each track is separate and can contain any type of event, each track may have its own tempo map
+        for _ in 0..header.ntracks {
+            tracks.push(MTrk::new_track_format_2());
+        }
     }
 
-    println!("Size of MThd struct: {}", std::mem::size_of::<MThd>());
-    for header in headers.iter() {
-        // header.identifier.iter().cloned().collect::<String>() // works for a char array, but Rust char is 4 bytes
-        println!("{:?}\n\tSize: {}", header, std::mem::size_of_val(&header));
+    let mut tracks = Vec::new();
+    for _ in 0..header.ntracks { // we need to make this many track chunks
+        tracks.push(MTrk::new());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mthd_size_is_valid() {
+        let header = MThd::new();
+        assert_eq!(
+            std::mem::size_of_val(&header.identifier) +
+            std::mem::size_of_val(&header.chunklen) +
+            std::mem::size_of_val(&header.format) +
+            std::mem::size_of_val(&header.ntracks) +
+            std::mem::size_of_val(&header.tickdiv), 14);
     }
 
-    println!("Size of MThd struct: {:?}\nSize of struct variables:\n\tSize of Identifier: {:?}\n\tSize of chunklen: {}\n\tSize of format: {}\n\tSize of ntracks: {}\n\tSize of tickdiv: {}\n", 
-        std::mem::size_of::<MThd>(),
-        std::mem::size_of_val(&headers.get(0).unwrap().identifier), 
-        std::mem::size_of_val(&headers.get(0).unwrap().chunklen), 
-        std::mem::size_of_val(&headers.get(0).unwrap().format), 
-        std::mem::size_of_val(&headers.get(0).unwrap().ntracks), 
-        std::mem::size_of_val(&headers.get(0).unwrap().tickdiv));
+    #[test]
+    fn mthd_is_valid() {
 
-    let trk = MTrk::new();
-    println!("{:?}", MTrk::new());
-    println!("{:?}", trk);
+        // relying on randomness for a test is bad
+        // should be making custom headers to test these things
+        // but, because this new function does rely on randomness, we will just loop and make a bunch of them
+        for _ in 0..100 {
+            let header = MThd::new();
+
+            assert_eq!(header.identifier[0] as char, 'M');
+            assert_eq!(header.identifier[1] as char, 'T');
+            assert_eq!(header.identifier[2] as char, 'h');
+            assert_eq!(header.identifier[3] as char, 'd');
+
+            assert_eq!(header.chunklen, 6);
+
+            assert!(header.format < 3);
+        
+            if header.format == 0 {
+                assert_eq!(header.ntracks, 1);
+            }
+            else if header.format == 1{
+                assert!(header.ntracks >= 2);
+            }
+            else {
+                assert!(header.ntracks >= 1);
+            }
+
+            // check 15th bit, could also bitshift
+            if (0x8000 & header.tickdiv) == 0 { // bit 15 = 0 means we are using metrical timing
+                assert_eq!((header.tickdiv & 0x7FFF), 96); // 96 is a hardcoded value
+            }
+            else { // bit 15 = 1 means we are using timecode
+                // let temp = header.tickdiv & 0xFF00; // unset the lower bits, but we could just shift and be done
+                assert!((header.tickdiv >> 8 == 0xE8) || 
+                        (header.tickdiv >> 8 == 0xE7) ||
+                        (header.tickdiv >> 8 == 0xE3) || 
+                        (header.tickdiv >> 8 == 0xE2));
+                
+                // check lower 8 bits
+                assert!((header.tickdiv & 0xFF == 4) ||
+                        (header.tickdiv & 0xFF == 8) ||
+                        (header.tickdiv & 0xFF == 10) ||
+                        (header.tickdiv & 0xFF == 80) ||
+                        (header.tickdiv & 0xFF == 100));
+            }
+        }
+    }
+
+
 }
