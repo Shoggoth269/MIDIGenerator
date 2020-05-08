@@ -43,7 +43,6 @@ impl MIDIEvent {
 /// Used with match to create different events
 /// Use MetaEvent::pick_random() to randomly choose a MetaEvent with uniform distribution
 enum MetaEvent {
-    SequenceNumber,
     Text,
     SequenceORTrackName,
     InstrumentName,
@@ -52,11 +51,9 @@ enum MetaEvent {
     MIDIChannelPrefix,
     MIDIPort,
     EndOfTrack,
-    SequencerSpecificEvent,
     Marker,
     CuePoint,
     Tempo,
-    SMPTEOffset,
     TimeSignature,
     KeySignature,
 }
@@ -68,29 +65,26 @@ impl MetaEvent {
     /// # Arguments
     /// 
     /// * `lower` - A u32 representing the lower bound of the random number generation, minimum value of 0
-    /// * `upper` - A u32 representing the upper bound of the random number generation, maximum value of 16
+    /// * `upper` - A u32 representing the upper bound of the random number generation, maximum value of 13
     /// 
-    /// To pick between timing events, Lower: 10 and Upper: 16
+    /// To pick between timing events, Lower: 8 and Upper: 13
     fn pick_random(lower: u32, upper: u32) -> MetaEvent {
         let mut rng = rand::thread_rng();
         let temp = Uniform::from(lower..upper).sample(&mut rng) as u32;
         match temp {
-            0 => MetaEvent::SequenceNumber,
-            1 => MetaEvent::Text,
-            2 => MetaEvent::SequenceORTrackName,
-            3 => MetaEvent::InstrumentName,
-            4 => MetaEvent::Lyric,
-            5 => MetaEvent::ProgramName,
-            6 => MetaEvent::MIDIChannelPrefix,
-            7 => MetaEvent::MIDIPort,
-            8 => MetaEvent::EndOfTrack,
-            9 => MetaEvent::SequencerSpecificEvent,
-            10 => MetaEvent::Marker,
-            11 => MetaEvent::CuePoint,
-            12 => MetaEvent::Tempo,
-            13 => MetaEvent::SMPTEOffset,
-            14 => MetaEvent::TimeSignature,
-            15 => MetaEvent::KeySignature,
+            0 => MetaEvent::Text,
+            1 => MetaEvent::SequenceORTrackName,
+            2 => MetaEvent::InstrumentName,
+            3 => MetaEvent::Lyric,
+            4 => MetaEvent::ProgramName,
+            5 => MetaEvent::MIDIChannelPrefix,
+            6 => MetaEvent::MIDIPort,
+            7 => MetaEvent::EndOfTrack,
+            8 => MetaEvent::Marker,
+            9 => MetaEvent::CuePoint,
+            10 => MetaEvent::Tempo,
+            11 => MetaEvent::TimeSignature,
+            12 => MetaEvent::KeySignature,
             _ => panic!("Error when picking random MetaEvent. Number out of bounds.")
         }
     }
@@ -215,12 +209,6 @@ impl Event {
         let mut rng = rand::thread_rng();
 
         match event {
-            // If present, should occur at time = 0, prior to any MIDI events. Should not occur more than once in any single MTrk chunk.
-            // For format 0 and 1, this should only occur in the first track.
-            // For format 2, this can occur in each track, such that a MIDI Cue message could be used to identify each pattern/sequence
-            MetaEvent::SequenceNumber => {
-
-            },
             MetaEvent::Text => {
                 event_bytes.push(0x01);
                 let length = Uniform::from(1..50).sample(&mut rng) as u8;
@@ -262,16 +250,18 @@ impl Event {
                 }
             },
             MetaEvent::MIDIChannelPrefix => {
-
+                event_bytes.push(0x20);
+                event_bytes.push(0x01);
+                event_bytes.push(Uniform::from(0..16).sample(&mut rng) as u8); // cc byte, specifying MIDI channel 0-15
             },
             MetaEvent::MIDIPort => {
-
+                event_bytes.push(0x21);
+                event_bytes.push(0x01);
+                event_bytes.push(Uniform::from(0..128).sample(&mut rng) as u8); // pp byte, specifying MIDI port 0-127
             },
-            MetaEvent::EndOfTrack => {
-
-            },
-            MetaEvent::SequencerSpecificEvent => {
-
+            MetaEvent::EndOfTrack => { // Mandatory as the last event in each MTrk chunk, only one occurrence per track
+                event_bytes.push(0x2F);
+                event_bytes.push(0x00); // Length of 0
             },
             MetaEvent::Marker => { // Format 1, only in first MTrk chunk
                 event_bytes.push(0x06);
@@ -290,16 +280,46 @@ impl Event {
                 }
             },
             MetaEvent::Tempo => { // Format 1, only in first MTrk chunk
+                event_bytes.push(0x51);
+                event_bytes.push(0x03);
 
-            },
-            MetaEvent::SMPTEOffset => { // Format 1, only in first MTrk chunk
-
+                // Need a 24-bit value for number of microseconds per quarter note
+                // set an arbitrary range from 100000..5000000
+                let tt_bytes = Uniform::from(100_000..5_000_000).sample(&mut rng) as u32;
+                
+                event_bytes.push(((tt_bytes & 0xFF0000) >> 16) as u8);
+                event_bytes.push(((tt_bytes & 0x00FF00) >> 8) as u8);
+                event_bytes.push((tt_bytes & 0x0000FF) as u8);
             },
             MetaEvent::TimeSignature => { // Format 1, only in first MTrk chunk
+                event_bytes.push(0x58);
+                event_bytes.push(0x04);
 
+                // nn byte specifies the numerator of the time signature
+                let nn: u8 = Uniform::from(1..33).sample(&mut rng) as u8;
+                // dd byte specifies the denominator of the time signature as a negative power of 2 (i.e., 2 is quarter note, 3 is eighth-note, etc.)
+                let dd: u8 = Uniform::from(0..7).sample(&mut rng) as u8;
+                // cc byte specifies the number of MIDI clocks between metronome clicks
+                let cc: u8 = Uniform::from(1..65).sample(&mut rng) as u8;
+                // bb byte specifies the number of notated 32nd notes in a MIDI quarter-note (24 MIDI Clocks). The usual value is 8, though some sequencers allow user to specify
+                let bb: u8 = 0x08 as u8;
+
+                event_bytes.push(nn);
+                event_bytes.push(dd);
+                event_bytes.push(cc);
+                event_bytes.push(bb);
             },
             MetaEvent::KeySignature => { // Format 1, only in first MTrk chunk
+                event_bytes.push(0x59);
+                event_bytes.push(0x02);
 
+                // sf byte specifies the number of flats or sharps in the key signature, possible values from -7 to +7, inclusive
+                let sf: i8 = Uniform::from(-7..8).sample(&mut rng) as i8;
+                // mi byte specifies major (0) or minor (1) key
+                let mi: u8 = Uniform::from(0..2).sample(&mut rng) as u8;
+
+                event_bytes.push(sf as u8); // cast to u8 will distort the value if we print it, but the bytes are the same
+                event_bytes.push(mi);
             },
         }
     }
