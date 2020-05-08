@@ -45,12 +45,10 @@ impl MIDIEvent {
 enum MetaEvent {
     SequenceNumber,
     Text,
-    //Copyright,
     SequenceORTrackName,
     InstrumentName,
     Lyric,
     ProgramName,
-    //DeviceName,
     MIDIChannelPrefix,
     MIDIPort,
     EndOfTrack,
@@ -79,12 +77,10 @@ impl MetaEvent {
         match temp {
             0 => MetaEvent::SequenceNumber,
             1 => MetaEvent::Text,
-            //2 => MetaEvent::Copyright,
             2 => MetaEvent::SequenceORTrackName,
             3 => MetaEvent::InstrumentName,
             4 => MetaEvent::Lyric,
             5 => MetaEvent::ProgramName,
-            //7 => MetaEvent::DeviceName,
             6 => MetaEvent::MIDIChannelPrefix,
             7 => MetaEvent::MIDIPort,
             8 => MetaEvent::EndOfTrack,
@@ -233,16 +229,6 @@ impl Event {
                     event_bytes.push(byte);
                 }
             },
-            // Should be the first event, at time 0, in the first MTrk chunk with no other occurrences
-            // For this reason, it is being converted to a no-op
-            //MetaEvent::Copyright => {
-                // event_bytes.push(0x02);
-                // let length = Uniform::from(1..50).sample(&mut rng) as u8;
-                // event_bytes.push(length);
-                // for byte in generate_random_characters(length as u32) {
-                //     event_bytes.push(byte);
-                // }
-            //},
             MetaEvent::SequenceORTrackName => { // Optional, if in first track of format 0 or 1, gives Sequence Name. Gives Track Name otherwise.
                 event_bytes.push(0x03);
                 let length = Uniform::from(1..50).sample(&mut rng) as u8;
@@ -275,17 +261,6 @@ impl Event {
                     event_bytes.push(byte);
                 }
             },
-            // This event is optional and i used to identify the hardware device used to produce sounds for the track.
-            // It can only occur once in a track, at the beginning before any sendable MIDI data. It must also precede any Program Name Meta events.
-            // Because of these constraints, it will be removed for simplicity
-            //MetaEvent::DeviceName => {
-                // event_bytes.push(0x09);
-                // let length = Uniform::from(1..50).sample(&mut rng) as u8;
-                // event_bytes.push(length);
-                // for byte in generate_random_characters(length as u32) {
-                //     event_bytes.push(byte);
-                // }
-            //},
             MetaEvent::MIDIChannelPrefix => {
 
             },
