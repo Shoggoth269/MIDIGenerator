@@ -4,7 +4,12 @@ extern crate rand_distr;
 use rand::Rng;
 use rand_distr::{Distribution, Normal, NormalError, Uniform};
 
-enum MIDIEvents {
+#[derive(Debug, Copy, Clone)]
+/// Enum defining all MIDIEvents
+/// 
+/// Used with match to create different events
+/// Use MIDIEvent::pick_random() to randomly choose a MIDIEvent with uniform distribution
+enum MIDIEvent {
     NoteOff,
     NoteOn,
     PolyphonicPressure,
@@ -14,16 +19,38 @@ enum MIDIEvents {
     PitchBend,
 }
 
+impl MIDIEvent {
+    /// Returns a random MDIIEvent using a Uniform distribution
+    fn pick_random() -> MIDIEvent {
+        let mut rng = rand::thread_rng();
+        let temp = Uniform::from(0..7).sample(&mut rng) as u32;
+        match temp {
+            0 => MIDIEvent::NoteOff,
+            1 => MIDIEvent::NoteOn,
+            2 => MIDIEvent::PolyphonicPressure,
+            3 => MIDIEvent::Controller,
+            4 => MIDIEvent::ProgramChange,
+            5 => MIDIEvent::ChannelPressure,
+            6 => MIDIEvent::PitchBend,
+            _ => panic!("Error when picking random MIDIEvent. Number out of bounds.")
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
-enum MetaEvents {
+/// Enum defining all MetaEvents
+/// 
+/// Used with match to create different events
+/// Use MetaEvent::pick_random() to randomly choose a MetaEvent with uniform distribution
+enum MetaEvent {
     SequenceNumber,
     Text,
-    Copyright,
+    //Copyright,
     SequenceORTrackName,
     InstrumentName,
     Lyric,
     ProgramName,
-    DeviceName,
+    //DeviceName,
     MIDIChannelPrefix,
     MIDIPort,
     EndOfTrack,
@@ -36,39 +63,39 @@ enum MetaEvents {
     KeySignature,
 }
 
-impl MetaEvents {
+impl MetaEvent {
 
-    /// Returns a random MetaEvents using a Uniform distribution
+    /// Returns a random MetaEvent using a Uniform distribution
     /// 
     /// # Arguments
     /// 
     /// * `lower` - A u32 representing the lower bound of the random number generation, minimum value of 0
-    /// * `upper` - A u32 representing the upper bound of the random number generation, maximum value of 18
+    /// * `upper` - A u32 representing the upper bound of the random number generation, maximum value of 16
     /// 
-    /// To pick between timing events, Lower: 12 and Upper: 18
-    fn pick_random(lower: u32, upper: u32) -> MetaEvents {
+    /// To pick between timing events, Lower: 10 and Upper: 16
+    fn pick_random(lower: u32, upper: u32) -> MetaEvent {
         let mut rng = rand::thread_rng();
-        let test = Uniform::from(lower..upper).sample(&mut rng) as u32;
-        match test {
-            0 => MetaEvents::SequenceNumber,
-            1 => MetaEvents::Text,
-            2 => MetaEvents::Copyright,
-            3 => MetaEvents::SequenceORTrackName,
-            4 => MetaEvents::InstrumentName,
-            5 => MetaEvents::Lyric,
-            6 => MetaEvents::ProgramName,
-            7 => MetaEvents::DeviceName,
-            8 => MetaEvents::MIDIChannelPrefix,
-            9 => MetaEvents::MIDIPort,
-            10 => MetaEvents::EndOfTrack,
-            11 => MetaEvents::SequencerSpecificEvent,
-            12 => MetaEvents::Marker,
-            13 => MetaEvents::CuePoint,
-            14 => MetaEvents::Tempo,
-            15 => MetaEvents::SMPTEOffset,
-            16 => MetaEvents::TimeSignature,
-            17 => MetaEvents::KeySignature,
-            _ => panic!("Error when picking random event. Number out of bounds.")
+        let temp = Uniform::from(lower..upper).sample(&mut rng) as u32;
+        match temp {
+            0 => MetaEvent::SequenceNumber,
+            1 => MetaEvent::Text,
+            //2 => MetaEvent::Copyright,
+            2 => MetaEvent::SequenceORTrackName,
+            3 => MetaEvent::InstrumentName,
+            4 => MetaEvent::Lyric,
+            5 => MetaEvent::ProgramName,
+            //7 => MetaEvent::DeviceName,
+            6 => MetaEvent::MIDIChannelPrefix,
+            7 => MetaEvent::MIDIPort,
+            8 => MetaEvent::EndOfTrack,
+            9 => MetaEvent::SequencerSpecificEvent,
+            10 => MetaEvent::Marker,
+            11 => MetaEvent::CuePoint,
+            12 => MetaEvent::Tempo,
+            13 => MetaEvent::SMPTEOffset,
+            14 => MetaEvent::TimeSignature,
+            15 => MetaEvent::KeySignature,
+            _ => panic!("Error when picking random MetaEvent. Number out of bounds.")
         }
     }
 }
@@ -84,6 +111,10 @@ struct MThd {
 }
 
 impl MThd {
+
+    /// Create a new MThd chunk to serve as the header of the MIDI file
+    /// 
+    /// Randomly choosese format, ntracks, and tickdiv with uniform distribution and common values
     fn new() -> MThd {
         let mut rng = rand::thread_rng();
         let uniform = Uniform::from(0..3);
@@ -167,41 +198,136 @@ struct DeltaTime {
 
 }
 
-#[derive(Debug)]
-struct MidiEvent {
-
-}
 
 #[derive(Debug)]
-struct SysExEvent {
-
+/// This is just a wrapper around a Vec<u8>
+struct Event {
+    data: Vec<u8>, // Events have variable sizes, so we'll make a vector of bytes
 }
 
-#[derive(Debug)]
-struct MetaEvent {
+impl Event {
 
-}
-
-trait Event {
-    
-}
-
-impl std::fmt::Debug for dyn Event {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "TODO - NOT IMPLEMENTED")
+    fn new_midi_event(event: MIDIEvent) {
+        todo!();
     }
-}
 
-impl Event for MidiEvent {
+    fn new_meta_event(event: MetaEvent) {
+        
+        let mut event_bytes: Vec<u8> = Vec::new();
+        event_bytes.push(0xFF); // Status byte 0xFF holds for all Meta Events
 
-}
+        let mut rng = rand::thread_rng();
 
-impl Event for SysExEvent {
+        match event {
+            // If present, should occur at time = 0, prior to any MIDI events. Should not occur more than once in any single MTrk chunk.
+            // For format 0 and 1, this should only occur in the first track.
+            // For format 2, this can occur in each track, such that a MIDI Cue message could be used to identify each pattern/sequence
+            MetaEvent::SequenceNumber => {
 
-}
+            },
+            MetaEvent::Text => {
+                event_bytes.push(0x01);
+                let length = Uniform::from(1..50).sample(&mut rng) as u8;
+                event_bytes.push(length);
+                for byte in generate_random_characters(length as u32) {
+                    event_bytes.push(byte);
+                }
+            },
+            // Should be the first event, at time 0, in the first MTrk chunk with no other occurrences
+            // For this reason, it is being converted to a no-op
+            //MetaEvent::Copyright => {
+                // event_bytes.push(0x02);
+                // let length = Uniform::from(1..50).sample(&mut rng) as u8;
+                // event_bytes.push(length);
+                // for byte in generate_random_characters(length as u32) {
+                //     event_bytes.push(byte);
+                // }
+            //},
+            MetaEvent::SequenceORTrackName => { // Optional, if in first track of format 0 or 1, gives Sequence Name. Gives Track Name otherwise.
+                event_bytes.push(0x03);
+                let length = Uniform::from(1..50).sample(&mut rng) as u8;
+                event_bytes.push(length);
+                for byte in generate_random_characters(length as u32) {
+                    event_bytes.push(byte);
+                }
+            },
+            MetaEvent::InstrumentName => {
+                event_bytes.push(0x04);
+                let length = Uniform::from(1..50).sample(&mut rng) as u8;
+                event_bytes.push(length);
+                for byte in generate_random_characters(length as u32) {
+                    event_bytes.push(byte);
+                }
+            },
+            MetaEvent::Lyric => {
+                event_bytes.push(0x05);
+                let length = Uniform::from(1..50).sample(&mut rng) as u8;
+                event_bytes.push(length);
+                for byte in generate_random_characters(length as u32) {
+                    event_bytes.push(byte);
+                }
+            },
+            MetaEvent::ProgramName => {
+                event_bytes.push(0x08);
+                let length = Uniform::from(1..50).sample(&mut rng) as u8;
+                event_bytes.push(length);
+                for byte in generate_random_characters(length as u32) {
+                    event_bytes.push(byte);
+                }
+            },
+            // This event is optional and i used to identify the hardware device used to produce sounds for the track.
+            // It can only occur once in a track, at the beginning before any sendable MIDI data. It must also precede any Program Name Meta events.
+            // Because of these constraints, it will be removed for simplicity
+            //MetaEvent::DeviceName => {
+                // event_bytes.push(0x09);
+                // let length = Uniform::from(1..50).sample(&mut rng) as u8;
+                // event_bytes.push(length);
+                // for byte in generate_random_characters(length as u32) {
+                //     event_bytes.push(byte);
+                // }
+            //},
+            MetaEvent::MIDIChannelPrefix => {
 
-impl Event for MetaEvent {
+            },
+            MetaEvent::MIDIPort => {
 
+            },
+            MetaEvent::EndOfTrack => {
+
+            },
+            MetaEvent::SequencerSpecificEvent => {
+
+            },
+            MetaEvent::Marker => { // Format 1, only in first MTrk chunk
+                event_bytes.push(0x06);
+                let length = Uniform::from(1..50).sample(&mut rng) as u8;
+                event_bytes.push(length);
+                for byte in generate_random_characters(length as u32) {
+                    event_bytes.push(byte);
+                }
+            },
+            MetaEvent::CuePoint => { // Format 1, only in first MTrk chunk
+                event_bytes.push(0x07);
+                let length = Uniform::from(1..50).sample(&mut rng) as u8;
+                event_bytes.push(length);
+                for byte in generate_random_characters(length as u32) {
+                    event_bytes.push(byte);
+                }
+            },
+            MetaEvent::Tempo => { // Format 1, only in first MTrk chunk
+
+            },
+            MetaEvent::SMPTEOffset => { // Format 1, only in first MTrk chunk
+
+            },
+            MetaEvent::TimeSignature => { // Format 1, only in first MTrk chunk
+
+            },
+            MetaEvent::KeySignature => { // Format 1, only in first MTrk chunk
+
+            },
+        }
+    }
 }
 
 // Track chunk
@@ -211,7 +337,8 @@ impl Event for MetaEvent {
 struct MTrk {
     identifier: [u8; 4],
     chunklen: u32, // big-endian
-    data: Vec<(DeltaTime, Box<dyn Event>)>,
+    //data: Vec<(DeltaTime, Event)>,
+    data: Vec<(DeltaTime, Event)>,
 }
 
 impl MTrk {
@@ -221,10 +348,6 @@ impl MTrk {
 
         let fmt = uniform.sample(&mut rng) as u16;
 
-
-        let mut rng = rand::thread_rng();
-        let chunky = Uniform::from(1..100);
-
         MTrk {
             identifier: ['M' as u8, 'T' as u8, 'r' as u8, 'k' as u8],
             chunklen: 3,
@@ -233,13 +356,14 @@ impl MTrk {
     }
 
     fn new_track_format_0() -> MTrk {
+        // Start by deciding if we want a Sequence Number
         todo!();
     }
 
     /// Generates a random Global Tempo Track Chunk for use in format 1 files.
     /// A global tempo track contains all timing related events and no note data.
     /// 
-    /// This will generate a random number of timing events
+    /// This will generate a random number of timing events from 1..100
     /// 
     /// Timing events are the following Meta events:
     /// 
@@ -252,7 +376,7 @@ impl MTrk {
     fn new_global_tempo() -> MTrk {
         let mut rng = rand::thread_rng();
         
-        // Generate <DeltaTime>
+        // Generate <DeltaTime, Event> pairs
 
         MTrk {
             identifier: ['M' as u8, 'T' as u8, 'r' as u8, 'k' as u8],
@@ -263,26 +387,39 @@ impl MTrk {
     }
 
     fn new_track_format_1() -> MTrk {
+        // Start by deciding if we want a Sequence Number
         todo!();
     }
 
     fn new_track_format_2() -> MTrk {
+        // Start by deciding if we want a Sequence Number
         todo!();
     }
 }
 
+/// Generate n number of ASCII characters in range 32..127 (inclusive), returning as a Vec<u8>
+/// 
+/// # Arguments
+/// 
+/// * `n` - The number of characters to generate
+fn generate_random_characters(n: u32) -> Vec<u8> {
+    let mut rng = rand::thread_rng();
+    let uniform = Uniform::from(32..128);
+
+    let mut chars = Vec::new();
+
+    for _ in 0..n {
+        chars.push(uniform.sample(&mut rng) as u8);
+    }
+
+    chars
+}
+
 fn main() {
-    
-
-    let third_event = MetaEvents::pick_random(0, 18);
-    println!("Third Event: {:?}", third_event);
-
-
-    MetaEvents::pick_random(0, 18);
-
     let header = MThd::new();
     let mut tracks = Vec::new();
 
+    // Generate MTrk chunks depending on format
     if header.format == 0 { // need a single MTrk chunk containing any valid event
         tracks.push(MTrk::new_track_format_0());
     }
@@ -296,11 +433,6 @@ fn main() {
         for _ in 0..header.ntracks {
             tracks.push(MTrk::new_track_format_2());
         }
-    }
-
-    let mut tracks = Vec::new();
-    for _ in 0..header.ntracks { // we need to make this many track chunks
-        tracks.push(MTrk::new());
     }
 }
 
