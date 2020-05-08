@@ -73,14 +73,6 @@ impl MetaEvents {
     }
 }
 
-
-/* const METAEVENTSLIST: [MetaEvents; 18] = 
-                     [ MetaEvents::SequenceNumber, MetaEvents::Text, MetaEvents::Copyright, MetaEvents::SequenceORTrackName,
-                       MetaEvents::InstrumentName, MetaEvents::Lyric, MetaEvents::ProgramName, MetaEvents::DeviceName,
-                       MetaEvents::MIDIChannelPrefix, MetaEvents::MIDIPort, MetaEvents::EndOfTrack, MetaEvents::SequencerSpecificEvent,
-                       MetaEvents::Marker, MetaEvents::CuePoint, MetaEvents::Tempo, MetaEvents::SMPTEOffset,
-                       MetaEvents::TimeSignature, MetaEvents::KeySignature ]; */
-
 #[derive(Debug)]
 struct MThd {
     //identifier: String,
@@ -196,7 +188,7 @@ trait Event {
 
 impl std::fmt::Debug for dyn Event {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Test")
+        write!(f, "TODO - NOT IMPLEMENTED")
     }
 }
 
@@ -232,9 +224,7 @@ impl MTrk {
 
         let mut rng = rand::thread_rng();
         let chunky = Uniform::from(1..100);
-        // let normal = Normal::new(50.0, 25.0).unwrap(); // need proper error handling here
-        // chunklen: chunky.sample(&mut rng) as u32,
-        // chunklen: normal.sample(&mut rng) as u32,
+
         MTrk {
             identifier: ['M' as u8, 'T' as u8, 'r' as u8, 'k' as u8],
             chunklen: 3,
@@ -246,8 +236,19 @@ impl MTrk {
         todo!();
     }
 
-    // global tempo track contains all timing related events and no note data
-    // timing events are the following Meta events: Marker, Cue Point, Tempo, SMPTE Offset, Time Signature, and Key Signature
+    /// Generates a random Global Tempo Track Chunk for use in format 1 files.
+    /// A global tempo track contains all timing related events and no note data.
+    /// 
+    /// This will generate a random number of timing events
+    /// 
+    /// Timing events are the following Meta events:
+    /// 
+    /// * Marker
+    /// * Cue Point
+    /// * Tempo
+    /// * SMPTE Offset
+    /// * Time Signature
+    /// * Key Signature
     fn new_global_tempo() -> MTrk {
         let mut rng = rand::thread_rng();
         
@@ -323,6 +324,7 @@ mod tests {
 
         // relying on randomness for a test is bad
         // should be making custom headers to test these things
+        // or, better, should be using a seeded random number generator to get predictable results
         // but, because this new function does rely on randomness, we will just loop and make a bunch of them
         for _ in 0..100 {
             let header = MThd::new();
