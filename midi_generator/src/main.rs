@@ -2,7 +2,8 @@ extern crate rand;
 extern crate rand_distr;
 
 use rand::Rng;
-use rand_distr::{Distribution, Normal, NormalError, Uniform};
+use rand::distributions::WeightedIndex;
+use rand_distr::{Distribution, Uniform};
 
 #[derive(Debug, Copy, Clone)]
 /// Enum defining all MIDIEvents
@@ -184,10 +185,58 @@ impl MThd {
 }
 
 #[derive(Debug)]
+/// This is just a wrapper around a Vec<u8>
 struct DeltaTime {
-
+    data: Vec<u8>,
 }
 
+fn create_delta_time() -> DeltaTime {
+    let mut delta_time = Vec::new();
+
+    let mut rng = rand::thread_rng();
+
+    let choices = [1, 2, 3, 4];
+    let weights = [80, 12, 6, 2];
+    let dist = WeightedIndex::new(&weights).unwrap();
+
+    let nbytes = choices[dist.sample(&mut rng)];
+
+    // loosely generating weights to ensure that fewer bytes are more common
+    // let nbytes: u8 = match Uniform::from(0..20).sample(&mut rng) as u8 {
+    //     0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 => 1,
+    //     14 | 15 | 16 => 2,
+    //     17 | 18 => 3,
+    //     19 => 4,
+    //     _ => panic!("Error when generating delta time."),
+    // };
+    
+    match nbytes {
+        1 => {
+            delta_time.push(Uniform::from(0..128).sample(&mut rng) as u8);
+        },
+        2 => {
+            delta_time.push(Uniform::from(0..128).sample(&mut rng) as u8 | 0x80);
+            delta_time.push(Uniform::from(0..128).sample(&mut rng) as u8);
+        },
+        3 => {
+            delta_time.push(Uniform::from(0..128).sample(&mut rng) as u8 | 0x80);
+            delta_time.push(Uniform::from(0..128).sample(&mut rng) as u8 | 0x80);
+            delta_time.push(Uniform::from(0..128).sample(&mut rng) as u8);
+
+        },
+        4 => {
+            delta_time.push(Uniform::from(0..128).sample(&mut rng) as u8 | 0x80);
+            delta_time.push(Uniform::from(0..128).sample(&mut rng) as u8 | 0x80);
+            delta_time.push(Uniform::from(0..128).sample(&mut rng) as u8 | 0x80);
+            delta_time.push(Uniform::from(0..128).sample(&mut rng) as u8);
+        },
+        _ => panic!("Error when generating delta time. nbytes out of range.")
+    }
+
+    DeltaTime {
+        data: delta_time,
+    }
+}
 
 #[derive(Debug)]
 /// This is just a wrapper around a Vec<u8>
@@ -197,11 +246,86 @@ struct Event {
 
 impl Event {
 
-    fn new_midi_event(event: MIDIEvent) {
-        todo!();
+    fn new_midi_event(event: MIDIEvent) -> Event {
+        let mut event_bytes: Vec<u8> = Vec::new();
+        
+        let mut rng = rand::thread_rng();
+
+        match event {
+            MIDIEvent::NoteOff => {
+                let mut status_byte: u8 = 0x80;
+                status_byte = status_byte | (Uniform::from(0..16).sample(&mut rng) as u8);
+                event_bytes.push(status_byte);
+
+                let note: u8 = Uniform::from(0..128).sample(&mut rng) as u8;
+                let velocity: u8 = Uniform::from(0..128).sample(&mut rng) as u8; // defaults to 64 in absence of velocity sensors?
+                event_bytes.push(note);
+                event_bytes.push(velocity);
+            },
+            MIDIEvent::NoteOn => {
+                let mut status_byte: u8 = 0x90;
+                status_byte = status_byte | (Uniform::from(0..16).sample(&mut rng) as u8);
+                event_bytes.push(status_byte);
+
+                let note: u8 = Uniform::from(0..128).sample(&mut rng) as u8;
+                let velocity: u8 = Uniform::from(0..128).sample(&mut rng) as u8; // defaults to 64 in absence of velocity sensors?
+                event_bytes.push(note);
+                event_bytes.push(velocity);
+            },
+            MIDIEvent::PolyphonicPressure => {
+                let mut status_byte: u8 = 0xA0;
+                status_byte = status_byte | (Uniform::from(0..16).sample(&mut rng) as u8);
+                event_bytes.push(status_byte);
+
+                let note: u8 = Uniform::from(0..128).sample(&mut rng) as u8;
+                let pressure: u8 = Uniform::from(0..128).sample(&mut rng) as u8; // amount of note aftertouch
+                event_bytes.push(note);
+                event_bytes.push(pressure);
+            },
+            MIDIEvent::Controller => {
+                let mut status_byte: u8 = 0xB0;
+                status_byte = status_byte | (Uniform::from(0..16).sample(&mut rng) as u8);
+                event_bytes.push(status_byte);
+
+                let controller: u8 = Uniform::from(0..128).sample(&mut rng) as u8;
+                let value: u8 = Uniform::from(0..128).sample(&mut rng) as u8;
+                event_bytes.push(controller);
+                event_bytes.push(value);
+            },
+            MIDIEvent::ProgramChange => {
+                let mut status_byte: u8 = 0xC0;
+                status_byte = status_byte | (Uniform::from(0..16).sample(&mut rng) as u8);
+                event_bytes.push(status_byte);
+
+                let program: u8 = Uniform::from(0..128).sample(&mut rng) as u8;
+                event_bytes.push(program);
+            },
+            MIDIEvent::ChannelPressure => {
+                let mut status_byte: u8 = 0xD0;
+                status_byte = status_byte | (Uniform::from(0..16).sample(&mut rng) as u8);
+                event_bytes.push(status_byte);
+
+                let pressure: u8 = Uniform::from(0..128).sample(&mut rng) as u8;
+                event_bytes.push(pressure);
+            },
+            MIDIEvent::PitchBend => {
+                let mut status_byte: u8 = 0xE0;
+                status_byte = status_byte | (Uniform::from(0..16).sample(&mut rng) as u8);
+                event_bytes.push(status_byte);
+
+                let lsb: u8 = Uniform::from(0..128).sample(&mut rng) as u8;
+                let msb: u8 = Uniform::from(0..128).sample(&mut rng) as u8;
+                event_bytes.push(lsb);
+                event_bytes.push(msb);
+            },
+        }
+
+        Event {
+            data: event_bytes,
+        }
     }
 
-    fn new_meta_event(event: MetaEvent) {
+    fn new_meta_event(event: MetaEvent) -> Event {
         
         let mut event_bytes: Vec<u8> = Vec::new();
         event_bytes.push(0xFF); // Status byte 0xFF holds for all Meta Events
@@ -279,7 +403,7 @@ impl Event {
                     event_bytes.push(byte);
                 }
             },
-            MetaEvent::Tempo => { // Format 1, only in first MTrk chunk
+            MetaEvent::Tempo => { // Format 1, only in first MTrk chunk, Mandatory
                 event_bytes.push(0x51);
                 event_bytes.push(0x03);
 
@@ -291,7 +415,7 @@ impl Event {
                 event_bytes.push(((tt_bytes & 0x00FF00) >> 8) as u8);
                 event_bytes.push((tt_bytes & 0x0000FF) as u8);
             },
-            MetaEvent::TimeSignature => { // Format 1, only in first MTrk chunk
+            MetaEvent::TimeSignature => { // Format 1, only in first MTrk chunk, mandatory
                 event_bytes.push(0x58);
                 event_bytes.push(0x04);
 
@@ -309,7 +433,7 @@ impl Event {
                 event_bytes.push(cc);
                 event_bytes.push(bb);
             },
-            MetaEvent::KeySignature => { // Format 1, only in first MTrk chunk
+            MetaEvent::KeySignature => { // Format 1, only in first MTrk chunk, mandatory
                 event_bytes.push(0x59);
                 event_bytes.push(0x02);
 
@@ -322,6 +446,90 @@ impl Event {
                 event_bytes.push(mi);
             },
         }
+
+        Event {
+            data: event_bytes,
+        }
+    }
+
+    fn generate_mandatory_meta_events() -> Vec<Event> {
+        
+        let mut events: Vec<Event> = Vec::new();
+
+        let mut rng = rand::thread_rng();
+
+        let mut tempo_bytes: Vec<u8> = Vec::new();
+        let mut time_signature_bytes: Vec<u8> = Vec::new();
+        let mut key_signature_bytes: Vec<u8> = Vec::new();
+        
+        // Generate a Tempo event
+
+        tempo_bytes.push(0xFF);
+        tempo_bytes.push(0x51);
+        tempo_bytes.push(0x03);
+
+        // Need a 24-bit value for number of microseconds per quarter note
+        // set an arbitrary range from 100000..5000000
+        let tt_bytes = Uniform::from(100_000..5_000_000).sample(&mut rng) as u32;
+        
+        tempo_bytes.push(((tt_bytes & 0xFF0000) >> 16) as u8);
+        tempo_bytes.push(((tt_bytes & 0x00FF00) >> 8) as u8);
+        tempo_bytes.push((tt_bytes & 0x0000FF) as u8);
+            
+
+        let tempo = Event {
+            data: tempo_bytes,
+        };
+
+        // Generate a Time Signature event
+
+        time_signature_bytes.push(0xFF);
+        time_signature_bytes.push(0x58);
+        time_signature_bytes.push(0x04);
+
+        // nn byte specifies the numerator of the time signature
+        let nn: u8 = Uniform::from(1..33).sample(&mut rng) as u8;
+        // dd byte specifies the denominator of the time signature as a negative power of 2 (i.e., 2 is quarter note, 3 is eighth-note, etc.)
+        let dd: u8 = Uniform::from(0..7).sample(&mut rng) as u8;
+        // cc byte specifies the number of MIDI clocks between metronome clicks
+        let cc: u8 = Uniform::from(1..65).sample(&mut rng) as u8;
+        // bb byte specifies the number of notated 32nd notes in a MIDI quarter-note (24 MIDI Clocks). The usual value is 8, though some sequencers allow user to specify
+        let bb: u8 = 0x08 as u8;
+
+        time_signature_bytes.push(nn);
+        time_signature_bytes.push(dd);
+        time_signature_bytes.push(cc);
+        time_signature_bytes.push(bb);
+            
+        let time_signature = Event {
+            data: time_signature_bytes,
+        };
+
+        // Generate a Key Signature event
+
+        key_signature_bytes.push(0xFF);
+        key_signature_bytes.push(0x59);
+        key_signature_bytes.push(0x02);
+
+        // sf byte specifies the number of flats or sharps in the key signature, possible values from -7 to +7, inclusive
+        let sf: i8 = Uniform::from(-7..8).sample(&mut rng) as i8;
+        // mi byte specifies major (0) or minor (1) key
+        let mi: u8 = Uniform::from(0..2).sample(&mut rng) as u8;
+
+        key_signature_bytes.push(sf as u8); // cast to u8 will distort the value if we print it, but the bytes are the same
+        key_signature_bytes.push(mi);
+
+        let key_signature = Event {
+            data: key_signature_bytes,
+        };
+
+        // Add events to vector
+
+        events.push(tempo);
+        events.push(time_signature);
+        events.push(key_signature);
+
+        events
     }
 }
 
@@ -351,7 +559,6 @@ impl MTrk {
     }
 
     fn new_track_format_0() -> MTrk {
-        // Start by deciding if we want a Sequence Number
         todo!();
     }
 
@@ -372,6 +579,7 @@ impl MTrk {
         let mut rng = rand::thread_rng();
         
         // Generate <DeltaTime, Event> pairs
+        
 
         MTrk {
             identifier: ['M' as u8, 'T' as u8, 'r' as u8, 'k' as u8],
@@ -382,12 +590,10 @@ impl MTrk {
     }
 
     fn new_track_format_1() -> MTrk {
-        // Start by deciding if we want a Sequence Number
         todo!();
     }
 
     fn new_track_format_2() -> MTrk {
-        // Start by deciding if we want a Sequence Number
         todo!();
     }
 }
